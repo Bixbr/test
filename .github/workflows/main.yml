@@ -1,0 +1,127 @@
+name: Build Eden Nightly
+concurrency:
+  group: build-eden-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  info: 
+    runs-on: ubuntu-latest
+    name: "Get info"
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+  
+      - name: Get the latest release tag
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"      
+        run: |
+            api_url="https://api.github.com/repos/${{ github.repository }}"
+            latest_release_info=$(curl -H "Authorization: token $GH_TOKEN" "$api_url/releases/latest")
+            last_release_tag=$(echo "$latest_release_info" | jq -r '.tag_name')
+            echo "${last_release_tag}"
+            old_hash="${last_release_tag##*-}"
+            echo "OLD_HASH=$old_hash" >> "$GITHUB_ENV"
+       
+      - name: Generate changelog
+        run: |
+          chmod +x ./changelog.sh
+          ./changelog.sh
+          
+      - name: Upload tag file
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: tag
+          path: ~/tag
+          
+      - name: Upload count file
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: count
+          path: ~/count
+          
+      - name: Upload changelog file
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: changelog
+          path: ~/changelog
+
+      - name: Upload source code
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: source
+          path: artifacts
+          
+  appimage: 
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        include:
+          - target: steamdeck
+            runs-on: ubuntu-latest
+          - target: common
+            runs-on: ubuntu-latest
+          - target: legacy
+            runs-on: ubuntu-latest            
+          - target: aarch64
+            runs-on: ubuntu-24.04-arm
+    continue-on-error: true
+    container: ghcr.io/pkgforge-dev/archlinux:latest
+    name: "Appimage (${{ matrix.target }})"
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPILERCHECK: content
+      CCACHE_SLOPPINESS: time_macros
+      SCCACHE_GHA_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up ccache for ${{ matrix.target }}
+        if: ${{ matrix.target != 'aarch64' }}      
+        uses: actions/cache@v4.2.3
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ runner.os }}-ccache-${{ matrix.target }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-${{ matrix.target }}-
+            
+      - name: set up sccache-cache
+        if: ${{ matrix.target == 'aarch64' }}  
+        uses: mozilla-actions/sccache-action@v0.0.9            
+            
+      - name: Install dependencies
+        run: |
+          chmod +x ./linux-dependencies.sh
+          ./linux-dependencies.sh
+          
+      - name: Compile Eden ${{ matrix.target }}
+        run: |
+          chmod +x ./eden-appimage.sh
+          ./eden-appimage.sh ${{ matrix.target }}
+
+      - name: Upload appimage with mesa
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: eden-${{ matrix.target}}-mesa-appimage
+          path: mesa
+          
+      - name: Upload appbundle with mesa
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: eden-${{ matrix.target}}-mesa-appbundle
+          path: bundle
+          
+      - name: Upload appimage light
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: eden-${{ matrix.target}}-light-appimage
+          path: light        
+          
+
+ 
+                  
