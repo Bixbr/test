@@ -12,14 +12,6 @@ URUNTIME="https://github.com/VHSgunzo/uruntime/releases/latest/download/uruntime
 PELF="https://github.com/xplshn/pelf/releases/latest/download/pelf_$ARCH"
 
 case "$1" in
-    steamdeck)
-        echo "Making Eden Optimized Build for Steam Deck"
-        CMAKE_CXX_FLAGS="-march=znver2 -mtune=znver2 -O3 -pipe -flto=auto -Wno-error"
-        CMAKE_C_FLAGS="-march=znver2 -mtune=znver2 -O3 -pipe -flto=auto -Wno-error"
-	YUZU_USE_PRECOMPILED_HEADERS=OFF
-	CCACHE="ccache"
-        TARGET="Steamdeck"
-        ;;
     common)
         echo "Making Eden Optimized Build for Modern CPUs"
         CMAKE_CXX_FLAGS="-march=x86-64-v3 -O3 -pipe -flto=auto -Wno-error"
@@ -37,23 +29,16 @@ case "$1" in
 	CCACHE="ccache"
         TARGET="Legacy"
         ;;
-    aarch64)
-        echo "Making Eden Optimized Build for AArch64"
-        CMAKE_CXX_FLAGS="-march=armv8-a -mtune=generic -O3 -pipe -flto=auto -w"
-        CMAKE_C_FLAGS="-march=armv8-a -mtune=generic -O3 -pipe -flto=auto -w"
-	CCACHE="sccache"	
-        TARGET="Linux"
-        ;;
 esac
 
 AI_UPINFO="gh-releases-zsync|$(echo "$GITHUB_REPOSITORY" | tr '/' '|')|latest|*$ARCH.AppImage.zsync"
 AB_UPINFO="gh-releases-zsync|$(echo "$GITHUB_REPOSITORY" | tr '/' '|')|latest|*$ARCH.dwfs.AppBundle.zsync"
 
 # Clone Eden, fallback to mirror if upstream repo fails to clone
-if ! git clone 'https://git.eden-emu.dev/eden-emu/eden.git' ./eden; then
+if ! git clone -b "test" 'https://git.eden-emu.dev/eden-emu/eden.git' ./eden; then
 	echo "Using mirror instead..."
 	rm -rf ./eden || true
-	git clone 'https://github.com/pflyly/eden-mirror.git' ./eden
+	git clone -b "test" 'https://git.eden-emu.dev/eden-emu/eden.git' ./eden
 fi
 
 cd ./eden
